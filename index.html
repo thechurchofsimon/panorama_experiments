@@ -247,6 +247,154 @@ $("radius").onchange = () => {
   $("status").textContent =
     "Radius changed. Tap Start location test again.";
 };
+</script><style>
+  #northTools {
+    padding: 16px;
+    background: #293943;
+  }
+  .pnlm-orientation-button {
+    display: none !important;
+  }
+</style>
+
+<section id="northTools">
+  <h2>Set the panorama’s north</h2>
+  <p>
+    Preview the panorama and drag until the centre of the
+    prominent balcony table is exactly in the middle of the view.
+    Then tap “This view faces north”.
+  </p>
+  <button id="saveNorth">This view faces north</button>
+  <button id="compassOn">Enable compass viewing</button>
+  <button id="compassOff">Use finger instead</button>
+  <p id="northStatus" role="status">
+    Set north before enabling compass viewing.
+  </p>
+</section>
+
+<script>
+(() => {
+  const message = document.getElementById("northStatus");
+  const storageKey = "simons-panorama-north-v1";
+  let northYaw = null;
+  let compassEnabled = false;
+  let receivedHeading = false;
+  let headingTimer = null;
+
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved !== null && Number.isFinite(Number(saved))) {
+      northYaw = Number(saved);
+      message.textContent = "North reference saved in this browser.";
+    }
+  } catch (_) {}
+
+  function stopCompass() {
+    compassEnabled = false;
+    window.removeEventListener("deviceorientation", followCompass);
+    clearTimeout(headingTimer);
+  }
+
+  function followCompass(event) {
+    if (!compassEnabled || !viewer || !viewer.isLoaded()) return;
+
+    const heading = event.webkitCompassHeading;
+    if (!Number.isFinite(heading) || heading < 0) return;
+
+    if (Number.isFinite(event.webkitCompassAccuracy) &&
+        (event.webkitCompassAccuracy < 0 ||
+         event.webkitCompassAccuracy > 30)) {
+      message.textContent =
+        "Compass reading is uncertain. Move away from metal and try again.";
+      return;
+    }
+
+    receivedHeading = true;
+    clearTimeout(headingTimer);
+
+    const yaw = ((northYaw + heading + 180) % 360 + 360) % 360 - 180;
+    viewer.setYaw(yaw, false);
+
+    message.textContent =
+      "Compass viewing on. Bearing: " +
+      Math.round(heading) +
+      "°. Hold the phone upright in portrait. Swipe to look up or down.";
+  }
+
+  document.getElementById("saveNorth").onclick = () => {
+    if (!viewer || !viewer.isLoaded()) {
+      message.textContent =
+        "Open the panorama using Preview first, then centre the balcony table.";
+      return;
+    }
+
+    stopCompass();
+    viewer.stopOrientation();
+    northYaw = viewer.getYaw();
+
+    try {
+      localStorage.setItem(storageKey, String(northYaw));
+      message.textContent =
+        "The centre of this view is now north. Tap Enable compass viewing.";
+    } catch (_) {
+      message.textContent =
+        "North set for this visit. Tap Enable compass viewing.";
+    }
+  };
+
+  document.getElementById("compassOn").onclick = async () => {
+    if (northYaw === null) {
+      message.textContent = "Centre the balcony table and set north first.";
+      return;
+    }
+
+    if (!window.DeviceOrientationEvent) {
+      message.textContent =
+        "Compass viewing is unavailable. You can still use your finger.";
+      return;
+    }
+
+    try {
+      if (typeof DeviceOrientationEvent.requestPermission === "function") {
+        const permission =
+          await DeviceOrientationEvent.requestPermission();
+
+        if (permission !== "granted") {
+          message.textContent =
+            "Sensor permission was not granted. Use your finger instead.";
+          return;
+        }
+      }
+
+      openPanorama();
+      if (!viewer) return;
+      viewer.stopOrientation();
+      stopCompass();
+
+      compassEnabled = true;
+      receivedHeading = false;
+      message.textContent = "Waiting for the iPhone compass…";
+
+      window.addEventListener("deviceorientation", followCompass);
+      headingTimer = setTimeout(() => {
+        if (!receivedHeading) {
+          message.textContent =
+            "No compass heading received. Keep Safari open on your iPhone, " +
+            "or use your finger instead.";
+        }
+      }, 10000);
+    } catch (_) {
+      message.textContent =
+        "Could not enable compass viewing. You can still use your finger.";
+    }
+  };
+
+  document.getElementById("compassOff").onclick = () => {
+    stopCompass();
+    if (viewer) viewer.stopOrientation();
+    message.textContent = "Finger viewing enabled.";
+  };
+})();
 </script>
 </body>
 </html>
