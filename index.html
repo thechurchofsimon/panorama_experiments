@@ -395,6 +395,206 @@ $("radius").onchange = () => {
     message.textContent = "Finger viewing enabled.";
   };
 })();
+</script><style>
+  #filmTools {
+    padding: 16px;
+    background: #293943;
+  }
+  #filmLayer {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 3;
+  }
+  #filmPlane {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0;
+    height: 0;
+    transform-origin: 0 0;
+  }
+  #portalFilm {
+    position: absolute;
+    left: -500px;
+    top: -281.25px;
+    width: 1000px;
+    height: 562.5px;
+    background: black;
+    backface-visibility: hidden;
+  }
+</style>
+
+<section id="filmTools">
+  <h2>Film in the panorama · 60° wide</h2>
+  <p>
+    Open the panorama, then tap Show film.
+    The film starts silently; you can switch sound on below.
+  </p>
+  <button id="showFilm">Show film</button>
+  <button id="playFilm">Play / pause</button>
+  <button id="soundFilm">Turn sound on</button>
+  <button id="placeFilm">Place film in this direction</button>
+  <button id="hideFilm">Hide film</button>
+  <p id="filmStatus" role="status"></p>
+</section>
+
+<script>
+(() => {
+  const status = document.getElementById("filmStatus");
+  const layer = document.createElement("div");
+  layer.id = "filmLayer";
+  layer.hidden = true;
+
+  const plane = document.createElement("div");
+  plane.id = "filmPlane";
+
+  const film = document.createElement("video");
+  film.id = "portalFilm";
+  film.src = "./film.mp4";
+  film.playsInline = true;
+  film.setAttribute("playsinline", "");
+  film.muted = true;
+  film.loop = true;
+  film.preload = "metadata";
+
+  plane.appendChild(film);
+  layer.appendChild(plane);
+
+  let filmYaw = null;
+  let visible = false;
+  let frame = null;
+
+  const radians = degrees => degrees * Math.PI / 180;
+
+  function readNorth() {
+    try {
+      const saved = localStorage.getItem("simons-panorama-north-v1");
+      if (saved !== null && Number.isFinite(Number(saved))) {
+        return Number(saved);
+      }
+    } catch (_) {}
+    return viewer.getYaw();
+  }
+
+  function draw() {
+    frame = null;
+    if (!visible) return;
+
+    const container = viewer.getContainer();
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    if (width && height) {
+      const delta =
+        ((filmYaw - viewer.getYaw() + 540) % 360) - 180;
+      const pitch = viewer.getPitch();
+
+      // A 1000-unit-wide screen subtending exactly 60 degrees.
+      const distance = 500 / Math.tan(radians(30));
+      const focal = width /
+        (2 * Math.tan(radians(viewer.getHfov() / 2)));
+
+      // Hide the screen when it is behind the viewer.
+      plane.style.visibility =
+        Math.cos(radians(delta)) * Math.cos(radians(pitch)) > 0.05
+          ? "visible" : "hidden";
+
+      plane.style.transform =
+        "perspective(" + focal + "px) " +
+        "translateZ(" + focal + "px) " +
+        "rotateX(" + pitch + "deg) " +
+        "rotateY(" + (-delta) + "deg) " +
+        "translateZ(" + (-distance) + "px)";
+    }
+
+    frame = requestAnimationFrame(draw);
+  }
+
+  function ready() {
+    if (!viewer || !viewer.isLoaded()) {
+      status.textContent =
+        "Open the panorama with Preview first, then try again.";
+      return false;
+    }
+    return true;
+  }
+
+  async function play() {
+    try {
+      await film.play();
+      status.textContent =
+        "Film playing. Turn or drag to look around it.";
+    } catch (_) {
+      status.textContent =
+        "Tap Play / pause to start. If it fails, check film.mp4 is uploaded.";
+    }
+  }
+
+  document.getElementById("showFilm").onclick = () => {
+    if (!ready()) return;
+
+    if (!layer.isConnected) {
+      viewer.getContainer().appendChild(layer);
+    }
+    if (filmYaw === null) filmYaw = readNorth();
+
+    visible = true;
+    layer.hidden = false;
+    if (frame === null) draw();
+    play();
+    viewer.getContainer().scrollIntoView({
+      behavior: "smooth", block: "center"
+    });
+  };
+
+  document.getElementById("playFilm").onclick = () => {
+    if (!visible) {
+      status.textContent = "Tap Show film first.";
+      return;
+    }
+    if (film.paused) {
+      play();
+    } else {
+      film.pause();
+      status.textContent = "Film paused.";
+    }
+  };
+
+  document.getElementById("soundFilm").onclick = event => {
+    film.muted = !film.muted;
+    event.currentTarget.textContent =
+      film.muted ? "Turn sound on" : "Mute sound";
+    if (visible && film.paused) play();
+  };
+
+  document.getElementById("placeFilm").onclick = () => {
+    if (!ready()) return;
+    filmYaw = viewer.getYaw();
+    status.textContent =
+      "Film placed in this direction, centred at horizon height.";
+  };
+
+  document.getElementById("hideFilm").onclick = () => {
+    visible = false;
+    layer.hidden = true;
+    film.pause();
+    if (frame !== null) cancelAnimationFrame(frame);
+    frame = null;
+    status.textContent = "Film hidden.";
+  };
+
+  film.addEventListener("error", () => {
+    status.textContent =
+      "Could not load the film. Check it is named film.mp4 " +
+      "and is beside index.html in your repository.";
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) film.pause();
+  });
+})();
 </script>
 </body>
 </html>
