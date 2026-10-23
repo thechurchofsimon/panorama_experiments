@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1">
+  <title>Simon's panorama experiment</title>
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
+  <style>
+    body {
+      margin: 0;
+      background: #182027;
+      color: white;
+      font-family: system-ui, sans-serif;
+    }
+    header { padding: 12px 16px; }
+    h1 { font-size: 20px; margin: 0 0 6px; }
+    p { margin: 0; }
+    #panorama { width: 100%; height: 78vh; }
+    #status { padding: 12px 16px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>360° panorama test</h1>
+    <p>Drag to look around. On a phone, use your finger.</p>
+  </header>
+
+  <div id="panorama"></div>
+  <p id="status">Loading panorama…</p>
+
+  <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+  <script>
+    const status = document.getElementById("status");
+
+    if (!window.pannellum) {
+      status.textContent =
+        "The viewer could not load. Check your internet connection.";
+    } else {
+      const viewer = pannellum.viewer("panorama", {
+        type: "equirectangular",
+        panorama: "./360%20panorama.jpg",
+        autoLoad: true,
+        hfov: 100,
+        escapeHTML: true
+      });
+
+      viewer.on("load", function () {
+        status.textContent =
+          "Panorama loaded. Drag the image to look around.";
+      });
+
+      viewer.on("error", function () {
+        status.textContent =
+          "Could not display the panorama. Check that the JPEG " +
+          "is beside index.html and named exactly 360 panorama.jpg.";
+      });
+    }
+  </script>
+</body>
+</html>
