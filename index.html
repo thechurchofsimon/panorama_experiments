@@ -1,62 +1,252 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1">
-  <title>Simon's panorama experiment</title>
-  <link rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
-  <style>
-    body {
-      margin: 0;
-      background: #182027;
-      color: white;
-      font-family: system-ui, sans-serif;
-    }
-    header { padding: 12px 16px; }
-    h1 { font-size: 20px; margin: 0 0 6px; }
-    p { margin: 0; }
-    #panorama { width: 100%; height: 78vh; }
-    #status { padding: 12px 16px; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simon's garden panorama test</title>
+<link rel="stylesheet"
+ href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
+<style>
+  body {
+    margin: 0; background: #182027; color: white;
+    font-family: system-ui, sans-serif;
+  }
+  header { padding: 16px; }
+  h1 { margin: 0 0 10px; font-size: 22px; }
+  p { line-height: 1.5; }
+  button, select {
+    font: inherit; padding: 12px; margin: 4px 4px 4px 0;
+  }
+  #panorama { height: 65vh; width: 100%; }
+  #panorama[hidden] { display: none; }
+  #status { padding: 12px; background: #293943; }
+</style>
 </head>
 <body>
-  <header>
-    <h1>360° panorama test</h1>
-    <p>Drag to look around. On a phone, use your finger.</p>
-  </header>
+<header>
+  <h1>Garden time portal test</h1>
+  <p>In the garden, set your test point, then start the test.
+     Keep this page open and your phone unlocked.</p>
 
-  <div id="panorama"></div>
-  <p id="status">Loading panorama…</p>
+  <button id="set">Set garden point here</button>
+  <button id="start">Start location test</button>
+  <button id="stop">Stop test</button>
 
-  <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
-  <script>
-    const status = document.getElementById("status");
+  <p>
+    <label for="radius">Trigger radius:</label>
+    <select id="radius">
+      <option value="10">10 metres</option>
+      <option value="20" selected>20 metres</option>
+      <option value="30">30 metres</option>
+      <option value="50">50 metres</option>
+    </select>
+  </p>
 
-    if (!window.pannellum) {
-      status.textContent =
-        "The viewer could not load. Check your internet connection.";
-    } else {
-      const viewer = pannellum.viewer("panorama", {
-        type: "equirectangular",
-        panorama: "./360%20panorama.jpg",
-        autoLoad: true,
-        hfov: 100,
-        escapeHTML: true
-      });
+  <button id="preview">Preview panorama without location</button>
+  <button id="forget">Forget garden point</button>
+  <p id="point"></p>
+  <p id="status" role="status" aria-live="polite">
+    Set a garden point to begin.
+  </p>
+  <p id="viewerStatus" role="status"></p>
+</header>
 
-      viewer.on("load", function () {
-        status.textContent =
-          "Panorama loaded. Drag the image to look around.";
-      });
+<div id="panorama" hidden></div>
 
-      viewer.on("error", function () {
-        status.textContent =
-          "Could not display the panorama. Check that the JPEG " +
-          "is beside index.html and named exactly 360 panorama.jpg.";
-      });
+<script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const key = "simons-garden-point-v1";
+const options = {
+  enableHighAccuracy: true,
+  maximumAge: 0,
+  timeout: 20000
+};
+
+let point = null;
+let watch = null;
+let viewer = null;
+let entered = false;
+
+try {
+  const saved = JSON.parse(localStorage.getItem(key));
+  if (saved &&
+      Number.isFinite(saved.lat) &&
+      Number.isFinite(saved.lon) &&
+      Math.abs(saved.lat) <= 90 &&
+      Math.abs(saved.lon) <= 180) {
+    point = saved;
+  }
+} catch (_) {}
+
+function showPoint() {
+  $("point").textContent = point
+    ? "Garden point is set in this browser."
+    : "No garden point set.";
+}
+showPoint();
+
+function stopTracking() {
+  if (watch !== null) {
+    navigator.geolocation.clearWatch(watch);
+    watch = null;
+  }
+  entered = false;
+}
+
+function locationError(error) {
+  $("status").textContent = {
+    1: "Location permission was denied. Allow location for this site, then try again.",
+    2: "Your position is unavailable. Try again outdoors.",
+    3: "Finding your position took too long. Try again outdoors."
+  }[error.code] || "Could not get your location.";
+}
+
+function supported() {
+  if (!navigator.geolocation) {
+    $("status").textContent =
+      "Location is not supported in this browser.";
+    return false;
+  }
+  return true;
+}
+
+function openPanorama() {
+  $("panorama").hidden = false;
+  if (viewer) {
+    viewer.resize();
+    return;
+  }
+  if (!window.pannellum) {
+    $("viewerStatus").textContent =
+      "Viewer could not load. Check your connection and refresh.";
+    return;
+  }
+  $("viewerStatus").textContent = "Loading panorama…";
+  viewer = pannellum.viewer("panorama", {
+    type: "equirectangular",
+    panorama: "./360%20panorama.jpg",
+    autoLoad: true,
+    hfov: 100,
+    escapeHTML: true
+  });
+  viewer.on("load", () => {
+    $("viewerStatus").textContent =
+      "Panorama ready. Drag with your finger to look around.";
+  });
+  viewer.on("error", () => {
+    $("viewerStatus").textContent =
+      "Panorama could not load. Check the image filename.";
+  });
+}
+
+function distance(coords) {
+  const radians = degrees => degrees * Math.PI / 180;
+  const a = radians(coords.latitude);
+  const b = radians(point.lat);
+  const dLat = b - a;
+  const dLon = radians(point.lon - coords.longitude);
+  const h = Math.sin(dLat / 2) ** 2 +
+    Math.cos(a) * Math.cos(b) * Math.sin(dLon / 2) ** 2;
+  return 6371000 * 2 *
+    Math.asin(Math.sqrt(Math.min(1, h)));
+}
+
+$("set").onclick = () => {
+  if (!supported()) return;
+  stopTracking();
+  $("status").textContent = "Finding your garden point…";
+  navigator.geolocation.getCurrentPosition(position => {
+    const c = position.coords;
+    if (c.accuracy > 20) {
+      $("status").textContent =
+        "Position uncertainty is about " +
+        Math.round(c.accuracy) +
+        " metres. Move into the open and tap Set again.";
+      return;
     }
-  </script>
+    point = { lat: c.latitude, lon: c.longitude };
+    let saved = true;
+    try {
+      localStorage.setItem(key, JSON.stringify(point));
+    } catch (_) {
+      saved = false;
+    }
+    showPoint();
+    $("status").textContent =
+      "Garden point set. Reported accuracy: " +
+      Math.round(c.accuracy) + " metres. " +
+      (saved ? "" : "It will be lost when this page closes. ") +
+      "Tap Start location test.";
+  }, locationError, options);
+};
+
+$("start").onclick = () => {
+  if (!point) {
+    $("status").textContent = "Set your garden point first.";
+    return;
+  }
+  if (!supported()) return;
+  stopTracking();
+  $("panorama").hidden = true;
+  $("viewerStatus").textContent = "";
+  $("status").textContent = "Waiting for your position…";
+
+  watch = navigator.geolocation.watchPosition(position => {
+    const c = position.coords;
+    const metres = distance(c);
+    const radius = Number($("radius").value);
+    const details = "Distance: " + Math.round(metres) +
+      " m. Reported accuracy: " + Math.round(c.accuracy) + " m. ";
+
+    if (c.accuracy > radius) {
+      $("status").textContent = details +
+        "Location is too uncertain for this radius. Waiting for a better fix.";
+      return;
+    }
+
+    if (metres <= radius) {
+      if (!entered) {
+        entered = true;
+        openPanorama();
+      }
+      $("status").textContent = details +
+        "Inside the test area — panorama opened.";
+    } else if (metres > radius + 10) {
+      entered = false;
+      $("status").textContent = details +
+        "Outside the test area. Walk towards your garden point.";
+    } else {
+      $("status").textContent = details +
+        "Near the boundary. Move farther out to reset the trigger.";
+    }
+  }, locationError, options);
+};
+
+$("stop").onclick = () => {
+  stopTracking();
+  $("status").textContent = "Location test stopped.";
+};
+
+$("preview").onclick = () => {
+  stopTracking();
+  $("status").textContent = "Manual preview — location test stopped.";
+  openPanorama();
+};
+
+$("forget").onclick = () => {
+  stopTracking();
+  point = null;
+  try { localStorage.removeItem(key); } catch (_) {}
+  showPoint();
+  $("status").textContent = "Garden point forgotten.";
+};
+
+$("radius").onchange = () => {
+  stopTracking();
+  $("status").textContent =
+    "Radius changed. Tap Start location test again.";
+};
+</script>
 </body>
 </html>
