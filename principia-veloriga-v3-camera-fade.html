@@ -43,7 +43,7 @@ const tx=[texture(0),texture(1),texture(2)];
 const loc={};for(const k of ['yaw','pitch','aspect','scale','sceneMix','guideVisible','liveCamera'])loc[k]=gl.getUniformLocation(pr,k);
 const homeYaw=.43,homePitch=.12;let yaw=homeYaw,pitch=homePitch,motion=false,baseHeading=null,baseYaw=0,basePitch=homePitch,baseTilt=null,lastUpload=-1,videoOK=false,romanOnly=true,hasModern=false,hasRoman=false,headingTarget=null,pitchTarget=null,lastSensor=0,cameraLive=false,cameraUpload=-1;
 function pano(name,i){const im=new Image();im.onload=()=>{gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,tx[i]);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,im);if(i===0)hasModern=true;else hasRoman=true;if(hasRoman&&hasModern)s.textContent='Drag to look around. Tap Play with sound.'};im.onerror=()=>{if(i===0)s.textContent='Modern panorama missing; Roman view should still load.';else s.textContent='Roman panorama missing.'};im.src=name;}
-pano('360%20panorama.jpg',0);pano('principia_panorama_4096x2048.jpg',1);
+pano('principia_panorama_4096x2048.jpg',0);pano('principia_panorama_4096x2048.jpg',1);
 v.onloadeddata=()=>{videoOK=true;s.textContent='Ready. Tap Play with sound to meet Veloriga.'};
 v.onerror=()=>{s.textContent='Video not on GitHub yet: upload veloriga-green-v3.mp4 to the repository.'};
 function smooth(x){x=Math.min(1,Math.max(0,x));return x*x*(3-2*x)}
