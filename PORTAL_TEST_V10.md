@@ -1,0 +1,3 @@
+Lumion geometry test, 3 November 2026
+
+Built from V9; all earlier files preserved. Four named portal buttons on every scene. Existing portal-path-map-v9.jpg retained unchanged. All four new transparent-sky Lumion PNGs included. Scene opacity is manual and independent of video time. Replay and Set level view controls included. Offline kit uses a separate v10 cache. Panorama centre compass bearings are inherited estimates, not newly surveyed bearings. Sky cutouts are image-generated 1774 x 887 derivatives; not verified pixel-identical to the original Lumion renders. Field alignment and camera/motion permissions require iPhone testing.
