@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>East Gate · Motion test V12</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#17231f;color:#fff;font:16px system-ui}main{position:relative;width:100%;height:100svh;overflow:hidden}canvas{width:100%;height:100%;display:block;touch-action:none}header{position:absolute;top:0;padding:16px;background:linear-gradient(#0009,transparent);width:100%;pointer-events:none}h1{font-size:20px;margin:0 0 5px}p{margin:0;font-size:13px}nav{position:absolute;bottom:0;width:100%;padding:12px 12px max(12px,env(safe-area-inset-bottom));background:linear-gradient(transparent,#000d)}button{font:inherit;color:white;background:#263d32;border:1px solid #ffffff60;border-radius:8px;padding:10px;margin:3px;cursor:pointer}#status{padding:7px;font-size:13px}video{display:none}</style><style>[hidden]{display:none!important}#mapPanel{position:fixed;inset:0;z-index:10;background:#17231f;padding:12px;overflow:auto}.mapScroll{overflow:auto;margin-top:12px}.mapScroll img{display:block;width:2048px;max-width:none;height:auto}.portalLinks a,a{display:inline-block;color:#ffe5a0;padding:10px}#mapPanel p{font-size:15px}.testControls{display:flex;align-items:center;flex-wrap:wrap;gap:6px}input[type=range]{width:110px}header{padding:10px}nav{padding-top:8px}#status{max-width:90vw}</style><style>.portalButtons{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;pointer-events:auto;margin:8px 0}.portalButtons a{display:block;text-align:center;text-decoration:none;color:white;background:#263d32;border:1px solid #ffffff80;border-radius:8px;padding:11px 3px;font-size:14px}.portalButtons a[aria-current="page"]{background:#765f2b;border-color:#ffe5a0}header h1{font-size:16px}</style></head>
+<body><main id="scene"><canvas id="view" aria-label="Interactive 360 Roman settlement, drag or turn phone to look around"></canvas><header><h1>East Gate · Motion test V12</h1><p>Stays open until you close it · position fixed</p><div class="portalButtons" aria-label="Choose portal"><a href="vicus-test-v12.html">Vicus</a><a aria-current="page" href="east-gate-test-v12.html">East Gate</a><a href="principia-test-v12.html">Principia</a><a href="west-gate-test-v12.html">West Gate</a></div></header><nav><div id="northStatus" style="font-size:13px">North alignment: provisional</div><button id="compass">Use compass</button><button id="level">Set level view</button><div id="status" role="status">Loading the Roman fort…</div><button id="enter">Enter the Roman Fort</button><span id="after" hidden><button id="home">Find Veloriga</button><button id="replay">Replay Veloriga</button></span><button id="showMap">Map</button><button id="closeTest">Close test</button><details style="max-height:30vh;overflow:auto"><summary>Alignment controls · V12 motion smoothing</summary><p>Hold upright and pan slowly. If the fort moves faster than the camera, increase View width; if slower, decrease it. This setting is saved across portals. Phone testing is needed.</p><label>View width <input id="viewWidth" type="range" min="10" max="100" step="1" value="25"> <output id="widthValue">25°</output></label><div class="testControls"><label>Fort opacity <input id="opacity" type="range" min="0" max="1" step="0.05" value="1"></label><label><input id="showGuide" type="checkbox" checked> Veloriga</label></div></details></nav></main><section id="mapPanel" hidden><button id="hideMap">Return to scene</button><p>Reference map · choose any portal by name.</p><div class="portalLinks"><a href="vicus-test-v12.html">Vicus</a> <a href="east-gate-test-v12.html">East Gate</a> <a href="principia-test-v12.html">Principia</a> <a href="west-gate-test-v12.html">West Gate</a></div><div class="mapScroll"><img src="portal-path-map-v9.jpg" alt="Simon’s pathway map showing Vicus, East Gate, Principia and West Gate" width="2048" height="1383"></div></section>
+<video id="cameraFeed" autoplay muted playsinline webkit-playsinline style="display:none"></video><video id="film" src="east-gate-sequence-v7.mp4" playsinline webkit-playsinline preload="auto" crossorigin="anonymous"></video>
+<script>
+'use strict';
+let viewWidth=25;
+try{const saved=Number(localStorage.getItem('portal-view-width-v11'));if(saved>=10&&saved<=100)viewWidth=saved;}catch(e){}
+document.getElementById('viewWidth').value=viewWidth;
+document.getElementById('widthValue').textContent=viewWidth+'°';
+document.getElementById('viewWidth').oninput=e=>{viewWidth=Number(e.target.value);document.getElementById('widthValue').textContent=viewWidth+'°';try{localStorage.setItem('portal-view-width-v11',viewWidth);}catch(e){}};
+const c=document.getElementById('view'),v=document.getElementById('film'),s=document.getElementById('status'),$=id=>document.getElementById(id);
+// Timeline: intro 0–10, frozen intro fade 10–12, silent pause 12–37,
+// departure 37–47, frozen departure fade 47–49.
+const INTRO_END=10,HOLD_START=12,DEPARTURE_START=37,FADE_START=47,SEQUENCE_END=49;
+let phase='intro',activeVideo=v,lastVideo=null;
+const gl=c.getContext('webgl',{alpha:false,antialias:false,preserveDrawingBuffer:false});
+if(!gl){s.textContent='WebGL is unavailable. Try Safari or Chrome.';throw Error('WebGL unavailable')}
+function shader(type,src){const x=gl.createShader(type);gl.shaderSource(x,src);gl.compileShader(x);if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(x));return x}
+const pr=gl.createProgram();
+gl.attachShader(pr,shader(gl.VERTEX_SHADER,'attribute vec2 p;varying vec2 q;void main(){q=p;gl_Position=vec4(p,0.,1.);}'));
+gl.attachShader(pr,shader(gl.FRAGMENT_SHADER,`precision highp float;
+varying vec2 q;uniform sampler2D modern;uniform sampler2D roman;uniform sampler2D guide;
+uniform vec2 cameraCrop;uniform float departing;uniform float yaw;uniform float pitch;uniform float aspect;uniform float scale;uniform float sceneMix;uniform float guideVisible;uniform float liveCamera;
+void main(){
+ vec3 r=normalize(vec3(q.x*aspect*scale,q.y*scale,1.));
+ r=vec3(r.x,r.y*cos(pitch)+r.z*sin(pitch),-r.y*sin(pitch)+r.z*cos(pitch));
+ r=vec3(r.x*cos(yaw)+r.z*sin(yaw),r.y,-r.x*sin(yaw)+r.z*cos(yaw));
+ vec2 uv=vec2(fract(.5+atan(r.x,r.z)/6.28318530718),.5-asin(clamp(r.y,-1.,1.))/3.14159265359);
+ vec2 cameraUV=vec2(.5+q.x*.5*cameraCrop.x,.5-q.y*.5*cameraCrop.y); vec3 a=texture2D(modern,mix(uv,cameraUV,liveCamera)).rgb,b=texture2D(roman,uv).rgb;
+ vec3 col=mix(a,b,sceneMix*texture2D(roman,uv).a);
+ // V14: scale V13 by 1.10 around bottom centre (1106.25, 774.152).
+ // Width and height increase equally; bottom centre remains fixed.
+ vec2 f=(uv-vec2(1017.8925/2048.,453.7088/1024.))/vec2(176.715/2048.,320.4432/1024.);
+ if(f.x>=0.&&f.x<=1.&&f.y>=0.&&f.y<=1.){
+   vec3 actor=texture2D(guide,f).rgb;
+   // Green-screen key: reject pixels where green dominates both red and blue.
+   float greenDominance=actor.g-max(actor.r,actor.b);
+   float key=1.-smoothstep(.035,.15,greenDominance);
+   float edge=smoothstep(0.,.015,f.x)*smoothstep(0.,.015,1.-f.x)*smoothstep(0.,.010,f.y)*smoothstep(0.,.010,1.-f.y);
+   float alpha=guideVisible*key*edge;
+   // Suppress remaining green fringe at subject boundary.
+   vec3 despill=vec3(actor.r,min(actor.g,max(actor.r,actor.b)*1.10),actor.b);
+   col=mix(col,despill,alpha);
+ }
+ gl_FragColor=vec4(col,1.);
+}`));gl.linkProgram(pr);if(!gl.getProgramParameter(pr,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(pr));gl.useProgram(pr);
+const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);const p=gl.getAttribLocation(pr,'p');gl.enableVertexAttribArray(p);gl.vertexAttribPointer(p,2,gl.FLOAT,false,0,0);
+function texture(unit){gl.activeTexture(gl.TEXTURE0+unit);const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([25,35,30,255]));return t}
+const tx=[texture(0),texture(1),texture(2)];
+['modern','roman','guide'].forEach((name,i)=>gl.uniform1i(gl.getUniformLocation(pr,name),i));
+const loc={};for(const k of ['cameraCrop','yaw','pitch','aspect','scale','sceneMix','guideVisible','liveCamera','departing'])loc[k]=gl.getUniformLocation(pr,k);
+const panoramaCenterBearing=230.57767438817814;
+const homeYaw=.2523,homePitch=-.12;let yaw=homeYaw,pitch=homePitch,motion=false,baseHeading=null,baseYaw=0,basePitch=homePitch,baseTilt=null,currentTilt=null,lastUpload=-1,videoOK=false,romanOnly=false,hasModern=true,hasRoman=false,headingTarget=null,pitchTarget=null,lastSensor=0,cameraLive=false,cameraUpload=-1;
+function pano(name,i){const im=new Image();im.onload=()=>{gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,tx[i]);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,im);if(i===0)hasModern=true;else hasRoman=true;if(hasRoman&&hasModern)s.textContent='Ready. Tap Enter the Roman Fort.'};im.onerror=()=>{if(i===0)s.textContent='Modern panorama missing; Roman view should still load.';else s.textContent='Roman panorama missing.'};im.src=name;}
+// Before/after the Roman scene, show the live camera, or a plain dark background if unavailable.
+pano('east-gate-lumion-alpha-v10.png',1);
+v.onloadeddata=()=>{videoOK=true;};
+v.onerror=()=>{s.textContent='Guide unavailable; panorama testing can continue.'};
+function fade(){return Number($('opacity').value)}
+function guideOpacity(){return videoOK&&$('showGuide').checked?1:0}
+const cam=$('cameraFeed');
+let lastMotionFrame=null;
+function draw(){const av=activeVideo;const d=Math.min(devicePixelRatio||1,2),w=Math.round(c.clientWidth*d),h=Math.round(c.clientHeight*d);if(c.width!==w||c.height!==h){c.width=w;c.height=h;gl.viewport(0,0,w,h)}
+if(cameraLive&&cam.readyState>=2){gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tx[0]);try{gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cam)}catch(e){}}if(phase!=='done'&&av.readyState>=2&&(lastVideo!==av||lastUpload!==av.currentTime||av.seeking)){gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,tx[2]);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);try{gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,av);lastVideo=av;lastUpload=av.currentTime}catch(e){}}
+if(motion){const now=performance.now(),dt=lastMotionFrame===null?0:Math.min((now-lastMotionFrame)/1000,.1);lastMotionFrame=now;if(headingTarget!==null){const diff=Math.atan2(Math.sin(headingTarget-yaw),Math.cos(headingTarget-yaw));yaw+=diff*(1-Math.exp(-dt/.08));}if(pitchTarget!==null)pitch=pitchTarget;}else{lastMotionFrame=null;}gl.uniform1f(loc.yaw,yaw);gl.uniform1f(loc.pitch,pitch);gl.uniform1f(loc.aspect,w/h);gl.uniform1f(loc.scale,Math.tan(viewWidth*Math.PI/360)/(w/h));const cameraAspect=(cam.videoWidth||w)/(cam.videoHeight||h),screenAspect=w/h;gl.uniform2f(loc.cameraCrop,Math.min(1,screenAspect/cameraAspect),Math.min(1,cameraAspect/screenAspect));gl.uniform1f(loc.liveCamera,cameraLive?1:0);gl.uniform1f(loc.sceneMix,hasModern?fade(v.currentTime):1);gl.uniform1f(loc.departing,0);gl.uniform1f(loc.guideVisible,guideOpacity());gl.drawArrays(gl.TRIANGLES,0,6);requestAnimationFrame(draw)}draw();
+
+let entered=false,drag=null;
+c.onpointerdown=e=>{c.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY}};
+c.onpointermove=e=>{if(!drag)return;motion=false;yaw-=(e.clientX-drag.x)*.004;pitch=Math.max(-1.4,Math.min(1.4,pitch+(e.clientY-drag.y)*.004));drag={x:e.clientX,y:e.clientY}};
+c.onpointerup=c.onpointercancel=()=>drag=null;
+function faceGuide(){motion=false;yaw=homeYaw;pitch=homePitch;baseHeading=null;baseYaw=homeYaw;headingTarget=null;pitchTarget=null;}
+$('enter').onclick=async()=>{
+ if(entered)return;
+ entered=true;$('enter').disabled=true;
+ const permission=typeof window.DeviceOrientationEvent?.requestPermission==='function'
+ ? DeviceOrientationEvent.requestPermission().catch(()=>'denied')
+ : Promise.resolve(window.DeviceOrientationEvent?'granted':'denied');
+ const camera=navigator.mediaDevices?.getUserMedia
+ ? navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false}).then(async stream=>{cam.srcObject=stream;await cam.play();cameraLive=true;}).catch(()=>{s.textContent='Camera unavailable. Allow camera access to compare with the landscape.';})
+ : Promise.resolve();
+ v.muted=true;
+ if(v.getAttribute('src'))v.play().then(()=>{v.pause();v.currentTime=Math.min(1,v.duration||1);videoOK=true;}).catch(()=>{s.textContent='Guide unavailable; fort testing can continue.';});
+ faceGuide();baseTilt=81;basePitch=0;
+ motion=await permission==='granted';
+ $('enter').hidden=true;$('after').hidden=false;
+ s.textContent='Test held open. Turn your phone or drag. Choose a named portal above to switch.';
+ await camera;
+};
+$('level').onclick=()=>{baseTilt=currentTilt??81;basePitch=0;pitch=0;pitchTarget=0;s.textContent='Level view set.';};
+$('replay').onclick=()=>{v.currentTime=0;v.muted=false;$('showGuide').checked=true;v.play().catch(()=>{s.textContent='Tap Replay Veloriga again to play.';});};
+v.onended=()=>{$('showGuide').checked=false;s.textContent='Film finished. Panorama stays open; choose a portal above when ready.';};
+$('home').onclick=()=>{faceGuide();s.textContent='Reference view. Use compass to resume phone movement.';};
+$('showMap').onclick=()=>{$('mapPanel').hidden=false;};
+$('hideMap').onclick=()=>{$('mapPanel').hidden=true;};
+$('closeTest').onclick=()=>{v.pause();cam.srcObject?.getTracks().forEach(track=>track.stop());location.href='portal-test-v12.html';};
+let lastAngle=0;
+window.addEventListener('deviceorientation',e=>{
+ if(!motion)return;
+ const heading=Number.isFinite(e.webkitCompassHeading)?e.webkitCompassHeading:(Number.isFinite(e.alpha)?360-e.alpha:null);
+ if(heading!==null){
+ const absolute=Number.isFinite(e.webkitCompassHeading)||e.absolute===true;
+ if(absolute){
+ headingTarget=(heading-panoramaCenterBearing)*Math.PI/180;
+ $('northStatus').textContent='Compass aligned · north estimated'+(Number.isFinite(e.webkitCompassAccuracy)&&e.webkitCompassAccuracy<0?' · compass needs calibration':'');
+ }else{
+ if(baseHeading===null){baseHeading=heading;baseYaw=yaw;}
+ const delta=((heading-baseHeading+540)%360)-180;headingTarget=baseYaw+delta*Math.PI/180;
+ $('northStatus').textContent='Relative motion only · compass north unavailable';
+ }
+ }
+ const angle=((screen.orientation?.angle??window.orientation??0)%360+360)%360;
+ const tilt=(angle===90||angle===270)?(angle===90?-e.gamma:e.gamma):e.beta;
+ if(Number.isFinite(tilt)){
+   // Portrait uses Simon's 81-degree reference. Rebase seamlessly on rotation.
+   if(angle!==lastAngle){baseTilt=tilt;basePitch=pitch;lastAngle=angle;}
+   currentTilt=tilt;
+   let delta=((tilt-baseTilt+180)%360+360)%360-180;
+   pitchTarget=Math.max(-1.4,Math.min(1.4,basePitch+delta*Math.PI/180));
+ }
+});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)v.pause();else if(cameraLive)cam.play().catch(()=>{s.textContent='Camera paused. Close and reopen this test to restart it.';});});
+
+$('compass').onclick=async()=>{
+ const allowed=typeof window.DeviceOrientationEvent?.requestPermission==='function'
+ ? await DeviceOrientationEvent.requestPermission().catch(()=>'denied')
+ : (window.DeviceOrientationEvent?'granted':'denied');
+ motion=allowed==='granted';headingTarget=null;pitchTarget=null;baseHeading=null;baseYaw=yaw;baseTilt=currentTilt??81;basePitch=pitch;
+ $('northStatus').textContent=motion?'Waiting for compass · hold phone upright':'Compass unavailable · drag to look around';
+};
+$('home').addEventListener('click',()=>{$('northStatus').textContent='Facing Veloriga · tap Use compass to realign';});
+c.addEventListener('pointermove',()=>{if(!motion)$('northStatus').textContent='Finger view · tap Use compass to realign';});
+</script><script>if("serviceWorker" in navigator)navigator.serviceWorker.register("portal-test-sw-v12.js").catch(()=>{});</script></body></html>
+
