@@ -77,9 +77,20 @@ if(cameraLive&&cam.readyState>=2){gl.activeTexture(gl.TEXTURE0);gl.bindTexture(g
 if(motion){const now=performance.now(),dt=lastMotionFrame===null?0:Math.min((now-lastMotionFrame)/1000,.1);lastMotionFrame=now;if(headingTarget!==null){const diff=Math.atan2(Math.sin(headingTarget-yaw),Math.cos(headingTarget-yaw));const yawTime=(currentTilt!==null&&Math.abs(currentTilt-90)<12)?0.08:0.04;yaw+=diff*(1-Math.exp(-dt/yawTime));}if(pitchTarget!==null)pitch+=(pitchTarget-pitch)*(1-Math.exp(-dt/.04));}else{lastMotionFrame=null;}gl.uniform1f(loc.groundFade,Number($('groundFade').value));gl.uniform1f(loc.yaw,yaw);gl.uniform1f(loc.pitch,pitch);gl.uniform1f(loc.aspect,w/h);gl.uniform1f(loc.scale,Math.tan(viewWidth*Math.PI/360)/(w/h));const cameraAspect=(cam.videoWidth||w)/(cam.videoHeight||h),screenAspect=w/h;gl.uniform2f(loc.cameraCrop,Math.min(1,screenAspect/cameraAspect),Math.min(1,cameraAspect/screenAspect));gl.uniform1f(loc.liveCamera,cameraLive?1:0);gl.uniform1f(loc.sceneMix,hasModern?fade(v.currentTime):1);gl.uniform1f(loc.departing,0);gl.uniform1f(loc.guideVisible,guideOpacity());gl.drawArrays(gl.TRIANGLES,0,6);requestAnimationFrame(draw)}draw();
 
 let entered=false,drag=null;
-c.onpointerdown=e=>{c.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY}};
-c.onpointermove=e=>{if(!drag)return;motion=false;yaw-=(e.clientX-drag.x)*.004;pitch=Math.max(-1.4,Math.min(1.4,pitch+(e.clientY-drag.y)*.004));drag={x:e.clientX,y:e.clientY}};
-c.onpointerup=c.onpointercancel=()=>drag=null;
+c.onpointerdown=e=>{c.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,moved:false}};
+c.onpointermove=e=>{if(!drag)return;if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>8)drag.moved=true;if(!drag.moved)return;motion=false;yaw-=(e.clientX-drag.x)*.004;pitch=Math.max(-1.4,Math.min(1.4,pitch+(e.clientY-drag.y)*.004));drag.x=e.clientX;drag.y=e.clientY};
+function guideHit(e){
+ const rect=c.getBoundingClientRect(),qx=2*(e.clientX-rect.left)/rect.width-1,qy=1-2*(e.clientY-rect.top)/rect.height;
+ const aspect=rect.width/rect.height,scale=Math.tan(viewWidth*Math.PI/360)/aspect;
+ let rx=qx*aspect*scale,ry=qy*scale,rz=1;
+ const len=Math.hypot(rx,ry,rz);rx/=len;ry/=len;rz/=len;
+ let ty=ry*Math.cos(pitch)+rz*Math.sin(pitch),tz=-ry*Math.sin(pitch)+rz*Math.cos(pitch);ry=ty;rz=tz;
+ let tx=rx*Math.cos(yaw)+rz*Math.sin(yaw);tz=-rx*Math.sin(yaw)+rz*Math.cos(yaw);rx=tx;rz=tz;
+ const u=((.5+Math.atan2(rx,rz)/(2*Math.PI))%1+1)%1, vv=.5-Math.asin(Math.max(-1,Math.min(1,ry)))/Math.PI;
+ return u>=1017.8925/2048&&u<=1194.6075/2048&&vv>=453.7088/1024&&vv<=774.152/1024;
+}
+c.onpointerup=e=>{if(drag&&!drag.moved&&guideOpacity()&&guideHit(e)){if(v.paused){if(v.ended)v.currentTime=0;v.muted=false;v.play().catch(()=>{s.textContent='Unable to play Veloriga. Please tap her again.';});}else v.pause();}drag=null;};
+c.onpointercancel=()=>drag=null;
 function faceGuide(){motion=false;yaw=homeYaw;pitch=homePitch;baseHeading=null;baseYaw=homeYaw;headingTarget=null;pitchTarget=null;}
 $('enter').onclick=async()=>{
  if(entered)return;
@@ -98,7 +109,7 @@ $('enter').onclick=async()=>{
 };
 $('level').onclick=()=>{baseTilt=currentTilt??81;basePitch=0;pitch=0;pitchTarget=0;s.textContent='Level view set.';};
 $('replay').onclick=()=>{v.currentTime=0;v.muted=false;$('showGuide').checked=true;v.play().catch(()=>{s.textContent='Tap Replay Veloriga again to play.';});};
-v.onended=()=>{$('showGuide').checked=false;s.textContent='Film finished. Panorama stays open; choose a portal above when ready.';};
+v.onended=()=>{s.textContent='Film finished. Panorama stays open; choose a portal above when ready.';};
 $('home').onclick=()=>{faceGuide();s.textContent='Reference view. Use compass to resume phone movement.';};
 $('showMap').onclick=()=>{$('mapPanel').hidden=false;};
 $('hideMap').onclick=()=>{$('mapPanel').hidden=true;};
