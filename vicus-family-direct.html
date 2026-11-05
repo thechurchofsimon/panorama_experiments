@@ -42,7 +42,7 @@ void main(){
  float foreground=smoothstep(.53,.60,uv.y); vec3 col=mix(a,b,sceneMix*texture2D(roman,uv).a*(1.0-groundFade*foreground));
  // V21: scale V21 by 1.10 around bottom centre (1106.25, 774.152).
  // Width and height increase equally; bottom centre remains fixed.
- vec2 f=(uv-vec2(1062.07125/2048.,613.9304/1024.))/vec2(88.3575/2048.,160.2216/1024.);
+ vec2 f=(uv-vec2(1017.8925/2048.,453.7088/1024.))/vec2(176.715/2048.,320.4432/1024.);
  if(f.x>=0.&&f.x<=1.&&f.y>=0.&&f.y<=1.){
    vec3 actor=texture2D(guide,f).rgb;
    // Green-screen key: reject pixels where green dominates both red and blue.
