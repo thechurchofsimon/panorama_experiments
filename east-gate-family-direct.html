@@ -65,7 +65,7 @@ const panoramaCenterBearing=230.57767438817814;
 const homeYaw=.2523,homePitch=-.12;let yaw=homeYaw,pitch=homePitch,motion=false,baseHeading=null,baseYaw=0,basePitch=homePitch,baseTilt=null,currentTilt=null,lastUpload=-1,videoOK=false,romanOnly=false,hasModern=true,hasRoman=false,headingTarget=null,pitchTarget=null,lastSensor=0,cameraLive=false,cameraUpload=-1;
 function pano(name,i){const im=new Image();im.onload=()=>{gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,tx[i]);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,im);if(i===0)hasModern=true;else hasRoman=true;if(hasRoman&&hasModern)s.textContent='Ready. Tap Enter the Roman Fort.'};im.onerror=()=>{if(i===0)s.textContent='Modern panorama missing; Roman view should still load.';else s.textContent='Roman panorama missing.'};im.src=name;}
 // Before/after the Roman scene, show the live camera, or a plain dark background if unavailable.
-pano('east-gate-polished-v21.jpg',1);
+pano('east-gate-new-location-4000.jpg',1);
 v.onloadeddata=()=>{videoOK=true;};
 v.onerror=()=>{s.textContent='Guide unavailable; panorama testing can continue.'};
 function fade(){return Number($('opacity').value)}
