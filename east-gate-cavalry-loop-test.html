@@ -54,9 +54,8 @@ void main(){
    float matte=texture2D(cavalry,vec2(x+.5,cf.y)).r;
    col=mix(col,horse,smoothstep(.02,.98,matte)*cavalryAlpha*sceneMix);
  }
- // V21: scale V21 by 1.10 around bottom centre (1106.25, 774.152).
- // Width and height increase equally; bottom centre remains fixed.
- vec2 f=(uv-vec2(1017.8925/2048.,453.7088/1024.))/vec2(176.715/2048.,320.4432/1024.);
+ // Place Veloriga to the left of the cavalry and double her width.
+ vec2 f=(uv-vec2(730/2048.,453.7088/1024.))/vec2(353.43/2048.,320.4432/1024.);
  if(f.x>=0.&&f.x<=1.&&f.y>=0.&&f.y<=1.){
    vec3 actor=texture2D(guide,f).rgb;
    // Green-screen key: reject pixels where green dominates both red and blue.
@@ -117,7 +116,7 @@ function guideHit(e){
  let ty=ry*Math.cos(pitch)+rz*Math.sin(pitch),tz=-ry*Math.sin(pitch)+rz*Math.cos(pitch);ry=ty;rz=tz;
  let tx=rx*Math.cos(yaw)+rz*Math.sin(yaw);tz=-rx*Math.sin(yaw)+rz*Math.cos(yaw);rx=tx;rz=tz;
  const u=((.5+Math.atan2(rx,rz)/(2*Math.PI))%1+1)%1, vv=.5-Math.asin(Math.max(-1,Math.min(1,ry)))/Math.PI;
- return u>=1017.8925/2048&&u<=1194.6075/2048&&vv>=453.7088/1024&&vv<=774.152/1024;
+ return u>=730/2048&&u<=1083.43/2048&&vv>=453.7088/1024&&vv<=774.152/1024;
 }
 c.onpointerup=e=>{if(drag&&!drag.moved&&guideOpacity()&&guideHit(e)){if(v.paused){if(v.ended)v.currentTime=0;v.muted=false;v.play().catch(()=>{s.textContent='Unable to play Veloriga. Please tap her again.';});}else v.pause();}drag=null;};
 c.onpointercancel=()=>drag=null;
