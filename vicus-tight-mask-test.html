@@ -55,12 +55,12 @@ void main(){
  vec4 col=texture2D(roman,uv)*sceneMix;
  vec2 px=uv*vec2(2048.,868.);
  col=layer(col,clip0,(px-vec2(217.4595,518.1852))/vec2(199.8244,138.7301),ready0);
- col=layer(col,clip1,(px-vec2(1661.4838,443.5744))/vec2(351.3303,204.2363),ready1);
+ col=layer(col,clip1,(px-vec2(1626.3508,443.5744))/vec2(421.5964,204.2363),ready1);
  col=layer(col,clip2,(px-vec2(830.8543,416.7347))/vec2(107.4025,268.5306),ready2);
- col=layer(col,clip3,(px-vec2(946.6755,423.1759))/vec2(153.1534,258.7590),ready3);
+ col=layer(col,clip3,(px-vec2(931.3602,423.1759))/vec2(183.7841,258.7590),ready3);
  col=layer(col,clip4,(px-vec2(1123.7500,573.4531))/vec2(241.6667,130.8565),ready4);
- col=layer(col,clip5,(px-vec2(101.9658,433.0000))/vec2(160.8216,292.0000),ready5);
- col=layer(col,clip6,(px-vec2(1889.2677,421.1173))/vec2(174.6851,292.6085),ready6);
+ col=layer(col,clip5,(px-vec2(85.8836,433.0000))/vec2(192.9859,292.0000),ready5);
+ col=layer(col,clip6,(px-vec2(1871.7992,421.1173))/vec2(209.6221,292.6085),ready6);
  gl_FragColor=col;
 }`));gl.linkProgram(pr);if(!gl.getProgramParameter(pr,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(pr));gl.useProgram(pr);
 const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);const p=gl.getAttribLocation(pr,'p');gl.enableVertexAttribArray(p);gl.vertexAttribPointer(p,2,gl.FLOAT,false,0,0);
