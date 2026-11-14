@@ -107,6 +107,34 @@ Promise.all([loadImage('vicus-panorama-4000.jpg'),loadMask("<svg xmlns=\"http://
  ctx.drawImage(silhouette,0,0,w,h);
  ctx.globalCompositeOperation='destination-out';
  ctx.drawImage(landscapeCutouts,0,0,w,h);
+ // Restore the side of the moss-roofed house exposed by the demolition.
+ // The polygons and texture samples use the same 1600 × 678 coordinates as the masks.
+ ctx.save();
+ ctx.globalCompositeOperation='source-over';
+ ctx.scale(w/1600,h/678);
+ function restoreHouseSurface(outline, sample, bounds) {
+   ctx.save();
+   ctx.beginPath();
+   outline.forEach(([x,y],index)=>index ? ctx.lineTo(x,y) : ctx.moveTo(x,y));
+   ctx.closePath();
+   ctx.clip();
+   const [x,y,width,height]=sample;
+   ctx.drawImage(panorama,x*w/1600,y*h/678,width*w/1600,height*h/678,...bounds);
+   ctx.restore();
+ }
+ restoreHouseSurface(
+   [[1291,333],[1317,336],[1333,359],[1324,363],[1323,388],[1317,393],[1311,399],[1292,404]],
+   [1320,339,22,13],[1291,333,43,71]
+ );
+ restoreHouseSurface(
+   [[1291,333],[1317,336],[1320,339],[1291,338]],
+   [1319,331,27,5],[1291,332,29,8]
+ );
+ restoreHouseSurface(
+   [[1298,278],[1313,272],[1307,294],[1309,322],[1317,336],[1291,334],[1288,331],[1287,324]],
+   [1314,290,33,42],[1287,272,31,64]
+ );
+ ctx.restore();
  ctx.globalAlpha=.5;
  ctx.drawImage(roads,0,0,w,h);
  gl.activeTexture(gl.TEXTURE0);
